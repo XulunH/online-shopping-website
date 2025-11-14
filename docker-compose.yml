@@ -1,0 +1,145 @@
+version: '3.9'
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: accountdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d
+      - mysql_data:/var/lib/mysql
+    networks:
+      - ecommerce-net
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ecommerce-net
+
+  cassandra:
+    image: cassandra:4
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - ecommerce-net
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/data
+      - zookeeper_datalog:/datalog
+    networks:
+      - ecommerce-net
+
+  kafka:
+    image: wurstmeister/kafka
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/kafka
+    networks:
+      - ecommerce-net
+
+  account-service:
+    build:
+      context: ./account-service
+    image: account-service:latest
+    depends_on:
+      - mysql
+      - kafka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/accountdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SECURITY_JWT_SECRET: change-me-32-chars-minimum-1234567890abcd
+    ports:
+      - "8081:8081"
+    networks:
+      - ecommerce-net
+    restart: on-failure
+
+  item-service:
+    build:
+      context: ./item-service
+    image: item-service:latest
+    depends_on:
+      - mongodb
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/itemdb
+    ports:
+      - "8082:8082"
+    networks:
+      - ecommerce-net
+    restart: on-failure
+
+  order-service:
+    build:
+      context: ./order-service
+    image: order-service:latest
+    depends_on:
+      - cassandra
+      - item-service
+      - kafka
+    environment:
+      ITEM_SERVICE_BASE_URL: http://item-service:8082
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_CASSANDRA_CONTACT_POINTS: cassandra
+      SPRING_CASSANDRA_PORT: 9042
+      SPRING_CASSANDRA_LOCAL_DATACENTER: datacenter1
+      SPRING_CASSANDRA_KEYSPACE_NAME: orderdb
+      SECURITY_JWT_SECRET: change-me-32-chars-minimum-1234567890abcd
+    ports:
+      - "8083:8083"
+    networks:
+      - ecommerce-net
+    restart: on-failure
+
+  payment-service:
+    build:
+      context: ./payment-service
+    image: payment-service:latest
+    depends_on:
+      - mysql
+      - order-service
+      - kafka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/paymentdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ORDER_SERVICE_BASE_URL: http://order-service:8083
+      SECURITY_JWT_SECRET: change-me-32-chars-minimum-1234567890abcd
+    ports:
+      - "8084:8084"
+    networks:
+      - ecommerce-net
+    restart: on-failure
+
+networks:
+  ecommerce-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  mongo_data:
+  cassandra_data:
+  kafka_data:
+  zookeeper_data:
+  zookeeper_datalog:
