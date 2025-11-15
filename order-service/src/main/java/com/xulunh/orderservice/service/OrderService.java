@@ -45,10 +45,10 @@ public class OrderService {
     public List<OrderResponse> getByAccountEmail(String accountEmail) {
          return orderRepository.findByAccountEmail(accountEmail).stream().map(this::toResponse).toList();
     }
-     @Transactional(readOnly = true)
-     public OrderResponse get(UUID id) {
-           return orderRepository.findById(id).map(this::toResponse).orElseThrow();
-     }
+//     @Transactional(readOnly = true)
+    public OrderResponse get(UUID id) {
+        return orderRepository.findOrderById(id).map(this::toResponse).orElseThrow();
+    }
 
     @PreAuthorize("isAuthenticated()")
     @Transactional
@@ -98,7 +98,7 @@ public class OrderService {
         if (auth == null || auth.getName() == null) {
             throw new IllegalStateException("Unauthenticated");
         }
-        var o = orderRepository.findById(id).orElseThrow();
+        var o = orderRepository.findOrderById(id).orElseThrow();
         if (!"CREATED".equals(o.getStatus())) {
             throw new IllegalStateException("Only orders in CREATED status can be updated");
         }
@@ -133,7 +133,7 @@ public class OrderService {
     }
     @Transactional
     public OrderResponse complete(UUID id) {
-        var o = orderRepository.findById(id).orElseThrow();
+        var o = orderRepository.findOrderById(id).orElseThrow();
         if (!"CREATED".equals(o.getStatus())) {
             throw new IllegalStateException("Order not in CREATED status");
         }
@@ -169,7 +169,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse cancel(UUID id) {
-        var o = orderRepository.findById(id).orElseThrow();
+        var o = orderRepository.findOrderById(id).orElseThrow();
         if ("CANCELED".equals(o.getStatus())) {
             return toResponse(o);
         }

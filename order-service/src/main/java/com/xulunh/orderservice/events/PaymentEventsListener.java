@@ -5,6 +5,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 @Component
@@ -24,5 +26,5 @@ public class PaymentEventsListener {
         }
     }
 
-    public record PaymentEvent(String type, UUID orderId, UUID paymentId) {}
+    public record PaymentEvent(String type, UUID orderId, UUID paymentId, BigDecimal amount, Instant occurredAt) {}
 }

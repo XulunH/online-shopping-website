@@ -32,7 +32,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse submit(PaymentRequest req) {
-        var existing = payments.findByIdempotencyKey(req.idempotencyKey());
+        var existing = payments.findByOrderId(req.orderId());
         if (existing.isPresent()) return toResponse(existing.get());
 
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -48,7 +48,7 @@ public class PaymentService {
         p.setOrderId(req.orderId());
         p.setAccountEmail(accountEmail);
         p.setAmount(req.amount());
-        p.setIdempotencyKey(req.idempotencyKey());
+        p.setIdempotencyKey(UUID.randomUUID().toString());
         p.setCreatedAt(Instant.now());
         p.setUpdatedAt(p.getCreatedAt());
 

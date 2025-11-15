@@ -21,6 +21,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class PaymentServiceTest {
@@ -44,15 +45,16 @@ class PaymentServiceTest {
     }
 
     @Test
-    void submit_returnsExisting_whenIdempotencyKeyAlreadyUsed() {
+    void submit_returnsExisting_whenOrderAlreadyHasPayment() {
         var payment = new Payment();
+        var orderId = UUID.randomUUID();
         payment.setId(UUID.randomUUID());
-        payment.setOrderId(UUID.randomUUID());
+        payment.setOrderId(orderId);
         payment.setStatus("SUCCESS");
-        when(repo.findByIdempotencyKey("k")).thenReturn(Optional.of(payment));
+        when(repo.findByOrderId(orderId)).thenReturn(Optional.of(payment));
 
         setAuth("user@example.com");
-        var res = service.submit(new PaymentRequest(payment.getOrderId(), new BigDecimal("10.00"), "k"));
+        var res = service.submit(new PaymentRequest(orderId, new BigDecimal("10.00")));
         assertThat(res.id()).isEqualTo(payment.getId());
         verify(repo, never()).save(any());
         verifyNoInteractions(events);
@@ -61,7 +63,7 @@ class PaymentServiceTest {
     @Test
     void submit_throws_whenUnauthenticated() {
         var orderId = UUID.randomUUID();
-        assertThatThrownBy(() -> service.submit(new PaymentRequest(orderId, new BigDecimal("5.00"), "k2")))
+        assertThatThrownBy(() -> service.submit(new PaymentRequest(orderId, new BigDecimal("5.00"))))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -73,9 +75,8 @@ class PaymentServiceTest {
         dto.status = "CREATED";
         dto.totalAmount = new BigDecimal("10.00");
         when(orders.get(orderId)).thenReturn(dto);
-        when(repo.findByIdempotencyKey("k3")).thenReturn(Optional.empty());
+        when(repo.findByOrderId(orderId)).thenReturn(Optional.empty());
 
-        // IMPORTANT: stub save(...) to return the entity (otherwise null → NPE in toResponse)
         when(repo.save(any(Payment.class))).thenAnswer(inv -> {
             Payment p = inv.getArgument(0);
             p.setId(UUID.randomUUID());
@@ -86,7 +87,7 @@ class PaymentServiceTest {
 
         setAuth("user@example.com");
         ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
-        PaymentResponse resp = service.submit(new PaymentRequest(orderId, new BigDecimal("9.99"), "k3"));
+        PaymentResponse resp = service.submit(new PaymentRequest(orderId, new BigDecimal("9.99")));
         verify(repo).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo("FAILED");
         assertThat(resp.status()).isEqualTo("FAILED");
@@ -101,7 +102,7 @@ class PaymentServiceTest {
         dto.status = "CREATED";
         dto.totalAmount = new BigDecimal("15.50");
         when(orders.get(orderId)).thenReturn(dto);
-        when(repo.findByIdempotencyKey("k4")).thenReturn(Optional.empty());
+        when(repo.findByOrderId(orderId)).thenReturn(Optional.empty());
         when(repo.save(any(Payment.class))).thenAnswer(inv -> {
             Payment p = inv.getArgument(0);
             p.setId(UUID.randomUUID());
@@ -111,7 +112,7 @@ class PaymentServiceTest {
         });
 
         setAuth("user@example.com");
-        var res = service.submit(new PaymentRequest(orderId, new BigDecimal("15.50"), "k4"));
+        var res = service.submit(new PaymentRequest(orderId, new BigDecimal("15.50")));
         assertThat(res.status()).isEqualTo("SUCCESS");
         verify(events).publishSucceeded(eq(orderId), any(UUID.class), eq(new BigDecimal("15.50")));
     }

@@ -4,7 +4,6 @@ import com.xulunh.paymentservice.dto.PaymentRequest;
 import com.xulunh.paymentservice.dto.PaymentResponse;
 import com.xulunh.paymentservice.dto.RefundRequest;
 import com.xulunh.paymentservice.service.PaymentService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,16 +22,15 @@ public class PaymentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
-    public PaymentResponse submit(@Valid @RequestBody PaymentRequest req, HttpServletRequest http) {
-        String auth = http.getHeader("Authorization");
+//    @PreAuthorize("isAuthenticated()")
+    public PaymentResponse submit(@Valid @RequestBody PaymentRequest req) {
         return service.submit(req);
     }
 
     @PostMapping("/{id}/refund")
     @PreAuthorize("isAuthenticated()")
-    public PaymentResponse refund(@PathVariable UUID id, @RequestBody(required = false) @Valid RefundRequest req, HttpServletRequest http) {
-        String auth = http.getHeader("Authorization");
+    public PaymentResponse refund(@PathVariable UUID id, @RequestBody(required = false) @Valid RefundRequest req) {
+
         return service.refund(id, req);
     }
 
